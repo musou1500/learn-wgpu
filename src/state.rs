@@ -107,6 +107,7 @@ pub struct WindowState {
 
     // main pipeline
     render_pipeline: wgpu::RenderPipeline,
+    wireframe_pipeline: wgpu::RenderPipeline,
     projection: Projection,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
@@ -149,7 +150,7 @@ impl WindowState {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
+                required_features: wgpu::Features::POLYGON_MODE_LINE,
                 required_limits: wgpu::Limits::default(),
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
@@ -278,7 +279,7 @@ impl WindowState {
         let render_pipeline = {
             let shader = wgpu::ShaderModuleDescriptor {
                 source: wgpu::ShaderSource::Wgsl(include_str!("../shader.wgsl").into()),
-                label: Some("Shader"),
+                label: Some("Filled Shader"),
             };
             create_render_pipeline(
                 &device,
@@ -287,6 +288,23 @@ impl WindowState {
                 Some(texture::Texture::DEPTH_FORMAT),
                 &[model::ModelVertex::desc(), InstanceRaw::desc()],
                 shader,
+                false, // Filled mode
+            )
+        };
+
+        let wireframe_pipeline = {
+            let shader = wgpu::ShaderModuleDescriptor {
+                source: wgpu::ShaderSource::Wgsl(include_str!("../wireframe.wgsl").into()),
+                label: Some("Wireframe Shader"),
+            };
+            create_render_pipeline(
+                &device,
+                &render_pipeline_layout,
+                config.format,
+                Some(texture::Texture::DEPTH_FORMAT),
+                &[model::ModelVertex::desc(), InstanceRaw::desc()],
+                shader,
+                true, // Wireframe mode
             )
         };
 
@@ -388,6 +406,7 @@ impl WindowState {
                 // None,
                 &[],
                 shader,
+                false, // Sky doesn't need wireframe
             )
         };
 
@@ -399,6 +418,7 @@ impl WindowState {
             config,
             size,
             render_pipeline,
+            wireframe_pipeline,
             camera,
             camera_uniform,
             camera_bind_group,
@@ -471,7 +491,17 @@ impl WindowState {
                 &self.light.bind_group,
             );
 
+            // Draw filled objects first
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw_model_instanced(
+                &self.obj_model,
+                0..self.instances.len() as u32,
+                &self.camera_bind_group,
+                &self.light.bind_group,
+            );
+
+            // Draw wireframe overlay
+            render_pass.set_pipeline(&self.wireframe_pipeline);
             render_pass.draw_model_instanced(
                 &self.obj_model,
                 0..self.instances.len() as u32,

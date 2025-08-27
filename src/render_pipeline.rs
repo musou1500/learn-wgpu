@@ -5,6 +5,7 @@ pub fn create_render_pipeline(
     depth_format: Option<wgpu::TextureFormat>,
     vertex_layouts: &[wgpu::VertexBufferLayout],
     shader: wgpu::ShaderModuleDescriptor,
+    wireframe_mode: bool,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(shader);
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -31,7 +32,11 @@ pub fn create_render_pipeline(
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
             cull_mode: Some(wgpu::Face::Back),
-            polygon_mode: wgpu::PolygonMode::Fill,
+            polygon_mode: if wireframe_mode {
+                wgpu::PolygonMode::Line
+            } else {
+                wgpu::PolygonMode::Fill
+            },
             unclipped_depth: false,
             conservative: false,
         },

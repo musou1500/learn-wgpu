@@ -87,6 +87,7 @@ impl Light {
             depth_format,
             &[model::ModelVertex::desc()],
             shader,
+            false, // Light doesn't need wireframe typically
         );
 
         Self {
