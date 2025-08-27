@@ -4,6 +4,7 @@ use crate::{
     camera::{Camera, CameraController, CameraUniform, Projection},
     light::{Light, LightUniform},
     model::{self, Vertex},
+    render_pipeline::create_render_pipeline,
     resources,
 };
 use cgmath::Rotation3;
@@ -89,83 +90,40 @@ impl model::Vertex for InstanceRaw {
     }
 }
 
-fn create_render_pipeline(
-    device: &wgpu::Device,
-    layout: &wgpu::PipelineLayout,
-    color_format: wgpu::TextureFormat,
-    depth_format: Option<wgpu::TextureFormat>,
-    vertex_layouts: &[wgpu::VertexBufferLayout],
-    shader: wgpu::ShaderModuleDescriptor,
-) -> wgpu::RenderPipeline {
-    let shader = device.create_shader_module(shader);
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
-        layout: Some(layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            buffers: vertex_layouts,
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: color_format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back),
-            polygon_mode: wgpu::PolygonMode::Fill,
-            unclipped_depth: false,
-            conservative: false,
-        },
-        depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
-            format,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: wgpu::MultisampleState {
-            count: 1,
-            mask: !0,
-            alpha_to_coverage_enabled: false,
-        },
-        multiview: None,
-        cache: None,
-    })
-}
-
 /// Holds window-specific state such as size, scale factor, and GPU resources.
 pub struct WindowState {
+    // window state
     window: std::sync::Arc<Window>,
-    surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     color: wgpu::Color,
+    pub mouse_pressed: bool,
+    pub camera_controller: CameraController,
+
+    // wgpu resource
+    surface: wgpu::Surface<'static>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+
+    // main pipeline
     render_pipeline: wgpu::RenderPipeline,
     projection: Projection,
-    camera: Camera,
-    pub mouse_pressed: bool,
-    camera_uniform: CameraUniform,
-    camera_buffer: wgpu::Buffer,
-    pub camera_controller: CameraController,
-    camera_bind_group: wgpu::BindGroup,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
-    depth_texture: texture::Texture,
     obj_model: model::Model,
+    depth_texture: texture::Texture,
+
+    // camera
+    camera: Camera,
+    camera_uniform: CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+
+    // skubox
     environment_bind_group: wgpu::BindGroup,
     sky_pipeline: wgpu::RenderPipeline,
+
+    // light
     light: Light,
 }
 
@@ -432,7 +390,6 @@ impl WindowState {
                 shader,
             )
         };
-        print!("creating sky_pipeline ok");
 
         Self {
             window,
